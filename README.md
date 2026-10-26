@@ -1,7 +1,7 @@
 # Cloudland-Software-Resume
 
-Quasar (Vue 3) frontend + Node/Express backend + PostgreSQL/Redis, deployed with Docker Compose.
-Admin authentication runs through the FastAPI auth microservice → FusionAuth (`auth.ailand.ai`).
+Quasar (Vue 3) frontend + Python / FastAPI backend (asyncpg) + PostgreSQL/Redis, deployed with Docker Compose.
+Admin authentication runs through the FastAPI auth microservice → FusionAuth (`auth.ailand.ai`) or standalone admin credentials.
 
 ---
 
@@ -11,8 +11,9 @@ Admin authentication runs through the FastAPI auth microservice → FusionAuth (
 ├── docker-compose.yml            # all services + networks + volumes
 ├── deploy.sh                     # one-shot deployment script
 ├── .env.example                  # template → copy to .env and edit
-├── api/backend/                  # Node/Express API (port 3000)
+├── api/backend/                  # Python / FastAPI API (port 3000)
 │   ├── Dockerfile
+│   ├── requirements.txt          # Python dependencies
 │   └── db/init.sql               # DB schema, auto-loaded on first run
 ├── style/frontend/               # Quasar SPA served by nginx (port 80)
 │   ├── Dockerfile

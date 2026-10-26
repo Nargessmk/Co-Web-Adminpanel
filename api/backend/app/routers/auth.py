@@ -6,6 +6,7 @@ the 202/242 two-factor and 203 password-change flows.
 
 from __future__ import annotations
 
+import hmac
 import logging
 import time
 from typing import Any, Optional
@@ -164,23 +165,19 @@ async def login(request: Request):
             except Exception as e:
                 logger.warning("Microservice auth unavailable, checking local fallback: %s", e)
 
-        # 2. Local authentication fallback (standalone / dev mode)
-        is_dev = (config.NODE_ENV or "development").lower() == "development" or not config.FUSIONAUTH_APPLICATION_ID
-
-        expected_user = _normalize_text(config.ADMIN_USERNAME or "admin").lower()
-        expected_pass = _normalize_text(config.ADMIN_PASSWORD or "admin")
-
-        norm_user = username.lower()
-        valid_usernames = {expected_user, "admin", "administrator", "cloudland", "root"}
-        valid_passwords = {expected_pass, "admin", "admin123", "123456", "password", "cloudland", "cloudland_password", "supersecret"}
+        # 2. Local authentication fallback (standalone / configured credentials)
+        expected_user = _normalize_text(config.ADMIN_USERNAME or "").strip().lower()
+        expected_pass = _normalize_text(config.ADMIN_PASSWORD or "").strip()
 
         matched = False
-        if norm_user in valid_usernames and (password in valid_passwords or is_dev):
-            matched = True
-        elif norm_user == expected_user and password == expected_pass:
-            matched = True
-        elif is_dev and norm_user and password:
-            matched = True
+        if expected_user and expected_pass:
+            # Constant-time comparison to prevent timing attacks
+            user_match = hmac.compare_digest(username.strip().lower(), expected_user)
+            pass_match = hmac.compare_digest(password.strip(), expected_pass)
+            if user_match and pass_match:
+                matched = True
+        else:
+            logger.error("Local admin authentication failed: ADMIN_USERNAME or ADMIN_PASSWORD is not configured")
 
         if matched:
             display_name = raw_user.strip() or "admin"

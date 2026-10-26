@@ -6,8 +6,8 @@
 #   4. over-long (60 min), wrong-audience, and expired tokens are rejected
 set -u
 cd "$(dirname "$0")"
-BASE="http://127.0.0.1:4000"
-SECRET="PDv7DrqznYL6nv7DrqzjnQYO9JxIsWdcjnQYL6nu0f"
+BASE="${TEST_BASE_URL:-http://127.0.0.1:4000}"
+SECRET="${MICROSERVICE_JWT_SECRET:-${JWT_SECRET:-PDv7DrqznYL6nv7DrqzjnQYO9JxIsWdcjnQYL6nu0f}}"
 PASS=0; FAIL=0
 
 mint() { # mint <lifetime_minutes> <audience>
