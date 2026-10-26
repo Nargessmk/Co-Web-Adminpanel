@@ -21,7 +21,9 @@ from ..helpers import (
     read_body,
     to_int,
 )
+from ..repositories.product_repo import ProductRepository
 from ..responses import failure, success
+from ..schemas.product import ProductCreateDTO, ProductUpdateDTO
 from ..security import AdminContext, require_admin
 
 logger = logging.getLogger("cloudland.products")
@@ -112,41 +114,19 @@ async def _store_image(files: dict, field: str, folder: str, admin: AdminContext
 
 
 @router.get("", tags=["Products - Public"])
-async def get_products(request: Request):
+async def get_products(
+    request: Request,
+    repo: ProductRepository = Depends(),
+):
     try:
         query = request.query_params
         category = query.get("category")
         page, limit, offset = page_limit(query.get("page"), query.get("limit"), 6, 50)
 
-        conditions = ["p.is_active = true"]
-        params: list = []
-
-        if category:
-            params.append(category)
-            conditions.append(f"pc.slug = ${len(params)}")
-
-        where_clause = "WHERE " + " AND ".join(conditions)
-
-        total = int(
-            await db.fetchval(
-                f"SELECT COUNT(*) {PRODUCT_FROM} {where_clause}", *params
-            )
-            or 0
-        )
-
-        params.append(limit)
-        limit_param = len(params)
-        params.append(offset)
-        offset_param = len(params)
-
-        rows = await db.fetch(
-            f"SELECT {PRODUCT_SELECT} {PRODUCT_FROM} {where_clause} "
-            f"ORDER BY p.created_at DESC LIMIT ${limit_param} OFFSET ${offset_param}",
-            *params,
-        )
+        rows, total = await repo.list_public(category, limit, offset)
 
         return success(
-            data=[dict(row) for row in rows],
+            data=rows,
             pagination=pagination(page, limit, total),
         )
     except Exception:  # noqa: BLE001
@@ -158,21 +138,16 @@ async def get_products(request: Request):
 async def admin_get_products(
     request: Request,
     _admin: AdminContext = Depends(require_admin),
+    repo: ProductRepository = Depends(),
 ):
     try:
         query = request.query_params
         page, limit, offset = page_limit(query.get("page"), query.get("limit"), 20, 100)
 
-        total = int(await db.fetchval("SELECT COUNT(*) FROM products") or 0)
-        rows = await db.fetch(
-            f"SELECT {PRODUCT_SELECT} {PRODUCT_FROM} "
-            f"ORDER BY p.created_at DESC LIMIT $1 OFFSET $2",
-            limit,
-            offset,
-        )
+        rows, total = await repo.list_admin(limit, offset)
 
         return success(
-            data=[dict(row) for row in rows],
+            data=rows,
             pagination=pagination(page, limit, total),
         )
     except Exception:  # noqa: BLE001
@@ -184,11 +159,10 @@ async def admin_get_products(
 async def admin_get_product_by_id(
     product_id: int,
     _admin: AdminContext = Depends(require_admin),
+    repo: ProductRepository = Depends(),
 ):
     try:
-        row = await db.fetchrow(
-            f"SELECT {PRODUCT_SELECT} {PRODUCT_FROM} WHERE p.id = $1", product_id
-        )
+        row = await repo.get_by_id(product_id)
         if row is None:
             return failure("Product not found", 404)
         return success(data=row)
@@ -201,6 +175,7 @@ async def admin_get_product_by_id(
 async def create_product(
     request: Request,
     admin: AdminContext = Depends(require_admin),
+    repo: ProductRepository = Depends(),
 ):
     try:
         body, files = await read_body(request)
@@ -209,8 +184,23 @@ async def create_product(
         if not title or not slug or not category_id:
             return failure("عنوان، نامک و دسته‌بندی الزامی هستند", 400)
 
+        # Validate with DTO
+        dto = ProductCreateDTO(
+            title=str(title).strip(),
+            slug=str(slug).strip(),
+            category_id=to_int(category_id),
+            short_description=body.get("short_description") or None,
+            description=body.get("description") or None,
+            url=body.get("url") or None,
+            badge=body.get("badge") or None,
+            is_featured=js_bool(body.get("is_featured")),
+            is_active=True if body.get("is_active") is None else js_bool(body.get("is_active")),
+            metrics_json=body.get("metrics_json") or body.get("metrics"),
+            tags_json=body.get("tags_json") or body.get("tags"),
+        )
+
         image_url = storage.to_object_key(body.get("image_url")) or None
-        uploaded = await _store_image(files, "image", "products", admin, title=title)
+        uploaded = await _store_image(files, "image", "products", admin, title=dto.title)
         if uploaded:
             image_url = uploaded
             try:
@@ -218,39 +208,26 @@ async def create_product(
                 await register_media(
                     file_url=uploaded,
                     folder="products",
-                    original_name=title,
+                    original_name=dto.title,
                     file_type="image",
                 )
             except Exception:
                 pass
 
         try:
-            metrics_val = body.get("metrics_json") or body.get("metrics")
-            if isinstance(metrics_val, (dict, list)):
-                import json
-                metrics_val = json.dumps(metrics_val, ensure_ascii=False)
-
-            tags_val = body.get("tags_json") or body.get("tags")
-            if isinstance(tags_val, (dict, list)):
-                import json
-                tags_val = json.dumps(tags_val, ensure_ascii=False)
-
-            row = await db.fetchrow(
-                "INSERT INTO products (title, slug, short_description, description, "
-                "image_url, category_id, is_featured, is_active, url, badge, metrics_json, tags_json) "
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *",
-                title,
-                slug,
-                body.get("short_description") or None,
-                body.get("description") or None,
-                image_url,
-                to_int(category_id),
-                js_bool(body.get("is_featured")),
-                True if body.get("is_active") is None else js_bool(body.get("is_active")),
-                body.get("url") or None,
-                body.get("badge") or None,
-                metrics_val or None,
-                tags_val or None,
+            row = await repo.create(
+                title=dto.title,
+                slug=dto.slug,
+                category_id=dto.category_id,
+                short_description=dto.short_description,
+                description=dto.description,
+                image_url=image_url,
+                is_featured=dto.is_featured,
+                is_active=dto.is_active,
+                url=dto.url,
+                badge=dto.badge,
+                metrics_json=dto.metrics_json,
+                tags_json=dto.tags_json,
             )
         except UniqueViolationError:
             return failure("A product with this slug already exists", 409)

@@ -1,32 +1,32 @@
-"""Product categories: GET /api/categories (public) + admin CRUD."""
+"""Product categories: GET /api/categories (public) + admin CRUD.
+
+Refactored to Clean Architecture with CategoryRepository and Pydantic validation.
+"""
 
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
 from asyncpg.exceptions import UniqueViolationError
 from fastapi import APIRouter, Depends, Request
 
-from .. import db
 from ..helpers import read_body, to_int
+from ..repositories.category_repo import CategoryRepository
 from ..responses import failure, success
+from ..schemas.category import CategoryCreateDTO, CategoryUpdateDTO
 from ..security import AdminContext, require_admin
 
 logger = logging.getLogger("cloudland.categories")
 
 router = APIRouter(prefix="/api/categories", tags=["Categories"])
 
-LIST_COLUMNS = "id, name, slug, description, sort_order, created_at"
-
 
 @router.get("", tags=["Categories - Public"])
-async def get_categories():
+async def get_categories(repo: CategoryRepository = Depends()):
     try:
-        rows = await db.fetch(
-            f"SELECT {LIST_COLUMNS} FROM product_categories "
-            f"ORDER BY sort_order ASC NULLS LAST, id ASC"
-        )
-        return success(data=[dict(row) for row in rows])
+        categories = await repo.list_all()
+        return success(data=categories)
     except Exception:  # noqa: BLE001
         logger.exception("Error fetching categories")
         return failure("Failed to fetch categories", 500)
@@ -36,16 +36,13 @@ async def get_categories():
 async def get_category_by_id(
     category_id: int,
     _admin: AdminContext = Depends(require_admin),
+    repo: CategoryRepository = Depends(),
 ):
     try:
-        row = await db.fetchrow(
-            "SELECT id, name, slug, description, created_at, updated_at "
-            "FROM product_categories WHERE id = $1",
-            category_id,
-        )
-        if row is None:
+        category = await repo.get_by_id(category_id)
+        if category is None:
             return failure("Category not found", 404)
-        return success(data=row)
+        return success(data=category)
     except Exception:  # noqa: BLE001
         logger.exception("Get category error")
         return failure("Failed to fetch category", 500)
@@ -55,12 +52,11 @@ async def get_category_by_id(
 async def get_category_product_count(
     category_id: int,
     _admin: AdminContext = Depends(require_admin),
+    repo: CategoryRepository = Depends(),
 ):
     try:
-        count = await db.fetchval(
-            "SELECT COUNT(*) FROM products WHERE category_id = $1", category_id
-        )
-        return success(data={"count": int(count or 0)})
+        count = await repo.get_product_count(category_id)
+        return success(data={"count": count})
     except Exception:  # noqa: BLE001
         logger.exception("Get category product count error")
         return failure("Failed to get product count", 500)
@@ -70,6 +66,7 @@ async def get_category_product_count(
 async def create_category(
     request: Request,
     _admin: AdminContext = Depends(require_admin),
+    repo: CategoryRepository = Depends(),
 ):
     try:
         body, _files = await read_body(request)
@@ -80,15 +77,11 @@ async def create_category(
         if not name or not slug:
             return failure("نام و نامک دسته‌بندی الزامی هستند", 400)
 
+        # Validate with DTO
+        dto = CategoryCreateDTO(name=name, slug=slug, description=description)
+
         try:
-            row = await db.fetchrow(
-                "INSERT INTO product_categories (name, slug, description, sort_order) "
-                "VALUES ($1, $2, $3, (SELECT COALESCE(MAX(sort_order), -1) + 1 "
-                "FROM product_categories)) RETURNING *",
-                name,
-                slug,
-                description or None,
-            )
+            row = await repo.create(dto.name, dto.slug, dto.description)
         except UniqueViolationError:
             return failure("A category with this slug already exists", 409)
 
@@ -103,37 +96,29 @@ async def update_category(
     category_id: int,
     request: Request,
     _admin: AdminContext = Depends(require_admin),
+    repo: CategoryRepository = Depends(),
 ):
     try:
         body, _files = await read_body(request)
+        existing = await repo.get_by_id(category_id)
+        if existing is None:
+            return failure("Category not found", 404)
+
         name = body.get("name")
         slug = body.get("slug")
         description = body.get("description")
         sort_order = body.get("sort_order")
 
-        existing = await db.fetchrow(
-            "SELECT id FROM product_categories WHERE id = $1", category_id
-        )
-        if existing is None:
-            return failure("Category not found", 404)
-
         order = None if sort_order is None or sort_order == "" else to_int(sort_order)
+        dto = CategoryUpdateDTO(name=name, slug=slug, description=description)
 
         try:
-            row = await db.fetchrow(
-                "UPDATE product_categories SET\n"
-                "  name = COALESCE($2, name),\n"
-                "  slug = COALESCE($3, slug),\n"
-                "  description = COALESCE($4, description),\n"
-                "  sort_order = COALESCE($5, sort_order),\n"
-                "  updated_at = CURRENT_TIMESTAMP\n"
-                "WHERE id = $1\n"
-                "RETURNING *",
+            row = await repo.update(
                 category_id,
-                name or None,
-                slug or None,
-                description if description is not None else None,
-                order,
+                name=dto.name,
+                slug=dto.slug,
+                description=dto.description,
+                sort_order=order,
             )
         except UniqueViolationError:
             return failure("A category with this slug already exists", 409)
@@ -148,15 +133,15 @@ async def update_category(
 async def delete_category(
     category_id: int,
     _admin: AdminContext = Depends(require_admin),
+    repo: CategoryRepository = Depends(),
 ):
     try:
-        existing = await db.fetchrow(
-            "SELECT id, name FROM product_categories WHERE id = $1", category_id
-        )
+        existing = await repo.get_by_id(category_id)
         if existing is None:
             return failure("Category not found", 404)
 
         # Delete products of this category first (cascade), then the category.
+        from .. import db
         async with db.pool().acquire() as connection:
             async with connection.transaction():
                 await connection.execute(
@@ -167,7 +152,7 @@ async def delete_category(
                     category_id,
                 )
 
-        return success(message="Category and related products deleted", data=row)
+        return success(message="Category and related products deleted", data=dict(row) if row else {})
     except Exception:  # noqa: BLE001
         logger.exception("Delete category error")
         return failure("Failed to delete category", 500)
