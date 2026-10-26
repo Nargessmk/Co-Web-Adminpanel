@@ -1,0 +1,238 @@
+services:
+  # ============================================
+  # DATABASES
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: cloudland-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${LOCAL_DB_NAME:-cloudland}
+      POSTGRES_USER: ${LOCAL_DB_USER:-cloudland_user}
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:?LOCAL_DB_PASSWORD must be set in .env}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./api/backend/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - cloudland-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LOCAL_DB_USER:-cloudland_user} -d ${LOCAL_DB_NAME:-cloudland}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: cloudland-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - cloudland-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # BACKEND (Python / FastAPI + asyncpg)
+  # ============================================
+  backend:
+    build:
+      context: ./api/backend
+      dockerfile: Dockerfile
+    container_name: cloudland-backend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4000:3000"
+    env_file:
+      - ./api/backend/.env
+    environment:
+      - DB_HOST=${DB_HOST:?DB_HOST must be set in .env}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-cloudland}
+      - DB_USER=${DB_USER:-cloudland_user}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      - MICROSERVICE_AUTH_URL=http://gateway:4001
+      - STORAGE_SERVICE_URL=${STORAGE_SERVICE_URL:-http://storage:4003}
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
+      - STORAGE_FALLBACK_LOCAL=${STORAGE_FALLBACK_LOCAL:-true}
+      - S3_PUBLIC_BASE=${S3_PUBLIC_BASE:-https://s3.ailand.ai}
+      - S3_BUCKET=${S3_BUCKET:-cloudland}
+      # Public origin, used for canonical/OpenGraph URLs and the absolute
+      # <loc> entries in sitemap.xml.
+      - SITE_URL=${SITE_URL:-}
+      - PORT=3000
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - cloudland-net
+
+  # ============================================
+  # FASTAPI MICROSERVICES
+  # ============================================
+  gateway:
+    build:
+      context: ./api/CloudLand-FastAPI-Main-Microservices
+      dockerfile: Dockerfile
+    container_name: cloudland-gateway
+    restart: unless-stopped
+    command: sh -c "cd Microservice-Gateway && uvicorn main:app --host 0.0.0.0 --port 4001"
+    ports:
+      - "127.0.0.1:4001:4001"
+    env_file:
+      - ./api/CloudLand-FastAPI-Main-Microservices/Microservice-Gateway/.env
+    environment:
+      - environment=production
+      - auth_service_url=http://auth:4002
+      - app_management_url=http://app-management:4004
+      - storage_service_url=http://storage:4003
+      - background_task_url=http://background-task:4005
+      - redis_host=redis
+    networks:
+      - cloudland-net
+    depends_on:
+      - redis
+      - auth
+
+  auth:
+    build:
+      context: ./api/CloudLand-FastAPI-Main-Microservices
+      dockerfile: Dockerfile
+    container_name: cloudland-auth
+    restart: unless-stopped
+    command: sh -c "cd Microservice-Authentication && uvicorn main:app --host 0.0.0.0 --port 4002"
+    ports:
+      - "127.0.0.1:4002:4002"
+    env_file:
+      - ./api/CloudLand-FastAPI-Main-Microservices/Microservice-Authentication/.env
+    environment:
+      - ENVIRONMENT=production
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - RABBITMQ_HOST=rabbitmq
+      - redis_host=redis
+    networks:
+      - cloudland-net
+    depends_on:
+      - redis
+
+  app-management:
+    build:
+      context: ./api/CloudLand-FastAPI-Main-Microservices
+      dockerfile: Dockerfile
+    container_name: cloudland-app-management
+    restart: unless-stopped
+    profiles: ["extra"]
+    command: sh -c "cd Microservice-AppManagement && uvicorn main:app --host 0.0.0.0 --port 4004"
+    ports:
+      - "127.0.0.1:4004:4004"
+    networks:
+      - cloudland-net
+    depends_on:
+      - backend
+
+  storage:
+    build:
+      context: ./api/CloudLand-FastAPI-Main-Microservices
+      dockerfile: Dockerfile
+    container_name: cloudland-storage
+    restart: unless-stopped
+    command: sh -c "cd Microservice-Storage && uvicorn main:app --host 0.0.0.0 --port 4003"
+    ports:
+      - "127.0.0.1:4003:4003"
+    env_file:
+      - ./api/CloudLand-FastAPI-Main-Microservices/Microservice-Storage/.env
+    environment:
+      - environment=production
+      - database_url=${STORAGE_DATABASE_URL:?STORAGE_DATABASE_URL must be set in .env}
+      - redis_host=redis
+      - jwt_secret_key=${MICROSERVICE_JWT_SECRET:?MICROSERVICE_JWT_SECRET must be set in .env}
+      # Local RabbitMQ (Microservice-Storage/.env points at the remote broker,
+      # which is unreachable here and left the lifespan hanging in reconnect
+      # loops so :4003 never started accepting connections).
+      - rabbitmq_host=rabbitmq
+      - rabbitmq_port=5672
+      - rabbitmq_username=guest
+      - rabbitmq_password=guest
+      - rabbitmq_vhost=/
+    networks:
+      - cloudland-net
+
+  background-task:
+    build:
+      context: ./api/CloudLand-FastAPI-Main-Microservices
+      dockerfile: Dockerfile
+    container_name: cloudland-background-task
+    restart: unless-stopped
+    profiles: ["extra"]
+    command: sh -c "cd Service-BackgroundTask && uvicorn main:app --host 0.0.0.0 --port 4005"
+    ports:
+      - "127.0.0.1:4005:4005"
+    environment:
+      - environment=production
+      - redis_host=redis
+      - rabbitmq_host=rabbitmq
+      - rabbitmq_port=5672
+      - rabbitmq_username=guest
+      - rabbitmq_password=guest
+      - rabbitmq_vhost=/
+      - jwt_secret_key=${MICROSERVICE_JWT_SECRET:?MICROSERVICE_JWT_SECRET must be set in .env}
+      - database_url=${BACKGROUND_TASK_DATABASE_URL:?BACKGROUND_TASK_DATABASE_URL must be set in .env}
+    networks:
+      - cloudland-net
+    depends_on:
+      - redis
+
+  # ============================================
+  # FRONTEND (Quasar + Nginx)
+  # ============================================
+  frontend:
+    build:
+      context: ./style/frontend
+      dockerfile: Dockerfile
+    container_name: cloudland-frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9050:80"
+    networks:
+      - cloudland-net
+    depends_on:
+      - backend
+
+  # ============================================
+  # OPTIONAL: RabbitMQ (only for the "extra" microservice profile)
+  # ============================================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: cloudland-rabbitmq
+    restart: unless-stopped
+    profiles: ["extra"]
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    networks:
+      - cloudland-net
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  cloudland-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.0.0/16
+          gateway: 172.31.0.1

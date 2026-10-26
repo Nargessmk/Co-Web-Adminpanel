@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="100%" height="100%" fill="none">
+  <defs>
+    <linearGradient id="cloudFaceTop" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#949ba9"/>
+      <stop offset="100%" stop-color="#4a505e"/>
+    </linearGradient>
+    <linearGradient id="cloudFaceSide" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1f2228"/>
+      <stop offset="100%" stop-color="#0f1013"/>
+    </linearGradient>
+    <linearGradient id="goldGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe26a"/>
+      <stop offset="100%" stop-color="#e5a900"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- 3D Isometric Soft Floor Shadow -->
+  <ellipse cx="40" cy="67" rx="26" ry="6" fill="rgba(0,0,0,0.12)"/>
+
+  <!-- 3D Lower Extrusion (Matte Obsidian Black) -->
+  <path d="M22 43 L22 49 C22 55 26 58 32 58 L52 58 C58 58 62 54 62 48 L62 42 C60 46 55 49 49 49 L29 49 C25 49 23 46 22 43 Z" fill="url(#cloudFaceSide)"/>
+  
+  <!-- Right Depth Facet -->
+  <path d="M50 25 C54 25 57 27 59 31 C63 32 66 36 66 41 C66 46 62 50 56 50 L50 50 L50 42 C53 42 56 39 56 35 C56 32 54 30 51 30 Z" fill="#181a20"/>
+
+  <!-- Main Isometric Cloud Surface (Titanium Metallic Grey) -->
+  <path d="M31 28 C34 22 43 20 49 25 C54 23 60 27 61 33 C64 34 66 38 66 42 C66 48 61 52 54 52 L27 52 C21 52 16 47 16 41 C16 36 19 32 24 31 C25 25 28 29 31 28 Z" fill="url(#cloudFaceTop)" stroke="#9ea5b5" stroke-width="1.2"/>
+
+  <!-- Sleek Node Lines (Dark Graphite) -->
+  <line x1="40" y1="52" x2="40" y2="60" stroke="#3b3f4c" stroke-width="2" stroke-linecap="round"/>
+  <line x1="28" y1="52" x2="28" y2="57" stroke="#3b3f4c" stroke-width="2" stroke-linecap="round"/>
+  <line x1="52" y1="52" x2="52" y2="57" stroke="#3b3f4c" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Subtle Gold Accent Point -->
+  <circle cx="40" cy="60" r="3.2" fill="url(#goldGlow)" filter="url(#glow)"/>
+  <circle cx="40" cy="60" r="1.5" fill="#ffffff"/>
+  <circle cx="28" cy="57" r="1.8" fill="#656c7d"/>
+  <circle cx="52" cy="57" r="1.8" fill="#656c7d"/>
+</svg>

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="100%" height="100%" fill="none">
+  <defs>
+    <linearGradient id="shieldLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8e95a5"/>
+      <stop offset="100%" stop-color="#464b58"/>
+    </linearGradient>
+    <linearGradient id="shieldRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2a2d36"/>
+      <stop offset="100%" stop-color="#14151a"/>
+    </linearGradient>
+    <linearGradient id="goldKey" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe26a"/>
+      <stop offset="100%" stop-color="#e5a900"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <ellipse cx="40" cy="68" rx="24" ry="6" fill="rgba(0,0,0,0.12)"/>
+
+  <!-- 3D Extruded Depth Underneath (Obsidian Black) -->
+  <path d="M22 25 L22 30 C22 47 40 61 40 65 C40 61 58 47 58 30 L58 25 L40 18 Z" fill="#0f1013"/>
+
+  <!-- Shield Left Facet (Reflective Titanium Metal) -->
+  <path d="M40 18 L22 25 C22 42 40 56 40 61 L40 18 Z" fill="url(#shieldLeft)" stroke="#9ea5b5" stroke-width="1.2"/>
+
+  <!-- Shield Right Facet (Dark Obsidian Shadow Facet) -->
+  <path d="M40 18 L58 25 C58 42 40 56 40 61 L40 18 Z" fill="url(#shieldRight)" stroke="#3e424e" stroke-width="1.2"/>
+
+  <!-- Subtle Gold Core Lock (Zero-Trust Keyhole) -->
+  <circle cx="40" cy="35" r="4" fill="url(#goldKey)" filter="url(#glow)"/>
+  <polygon points="38.5,36 41.5,36 42.5,43 37.5,43" fill="url(#goldKey)"/>
+  <circle cx="40" cy="35" r="1.8" fill="#14151a"/>
+</svg>

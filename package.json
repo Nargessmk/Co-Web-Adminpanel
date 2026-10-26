@@ -1,0 +1,29 @@
+{
+  "dependencies": {
+    "@fontsource/vazirmatn": "^5.3.0"
+  },
+  "name": "cloudland-software-resume",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd api/backend && python -m uvicorn app.main:app --reload --port 3000",
+    "dev:frontend": "cd style/frontend && npx quasar dev",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Cloudland-Main/Cloudland-Software-Resume.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Cloudland-Main/Cloudland-Software-Resume/issues"
+  },
+  "homepage": "https://github.com/Cloudland-Main/Cloudland-Software-Resume#readme"
+}

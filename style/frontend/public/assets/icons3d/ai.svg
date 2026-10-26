@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="100%" height="100%" fill="none">
+  <defs>
+    <linearGradient id="chipTop" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#424653"/>
+      <stop offset="100%" stop-color="#1e2027"/>
+    </linearGradient>
+    <linearGradient id="goldCore" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe26a"/>
+      <stop offset="100%" stop-color="#e5a900"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2.5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <ellipse cx="40" cy="66" rx="24" ry="6" fill="rgba(0,0,0,0.12)"/>
+
+  <!-- Isometric Pins (Titanium Metallic) -->
+  <line x1="21" y1="30" x2="15" y2="33" stroke="#6c7383" stroke-width="2" stroke-linecap="round"/>
+  <line x1="25" y1="36" x2="19" y2="39" stroke="#6c7383" stroke-width="2" stroke-linecap="round"/>
+  <line x1="29" y1="42" x2="23" y2="45" stroke="#6c7383" stroke-width="2" stroke-linecap="round"/>
+  <line x1="33" y1="48" x2="27" y2="51" stroke="#6c7383" stroke-width="2" stroke-linecap="round"/>
+  
+  <line x1="47" y1="48" x2="53" y2="51" stroke="#6c7383" stroke-width="2" stroke-linecap="round"/>
+  <line x1="51" y1="42" x2="57" y2="45" stroke="#6c7383" stroke-width="2" stroke-linecap="round"/>
+  <line x1="55" y1="36" x2="61" y2="39" stroke="#6c7383" stroke-width="2" stroke-linecap="round"/>
+  <line x1="59" y1="30" x2="65" y2="33" stroke="#6c7383" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- 3D Chip Thickness (Obsidian Black) -->
+  <polygon points="17,35 40,49 40,54 17,40" fill="#101115"/>
+  <polygon points="40,49 63,35 63,40 40,54" fill="#181920"/>
+
+  <!-- 3D Chip Top Surface (Matte Titanium Slate) -->
+  <polygon points="17,35 40,21 63,35 40,49" fill="url(#chipTop)" stroke="#6a7182" stroke-width="1.3"/>
+
+  <!-- Inner Die Area -->
+  <polygon points="26,35 40,26 54,35 40,44" fill="#13151b" stroke="#353945" stroke-width="1"/>
+
+  <!-- Traces -->
+  <line x1="40" y1="26" x2="40" y2="30" stroke="#545a6a" stroke-width="1.5"/>
+  <line x1="40" y1="40" x2="40" y2="44" stroke="#545a6a" stroke-width="1.5"/>
+  <line x1="26" y1="35" x2="33" y2="35" stroke="#545a6a" stroke-width="1.5"/>
+  <line x1="47" y1="35" x2="54" y2="35" stroke="#545a6a" stroke-width="1.5"/>
+
+  <!-- Hero Subtle Gold Core (Glowing Neural Chip Center) -->
+  <polygon points="36,35 40,32 44,35 40,38" fill="url(#goldCore)" filter="url(#glow)"/>
+  <circle cx="40" cy="35" r="1.3" fill="#ffffff"/>
+</svg>
